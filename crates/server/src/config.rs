@@ -46,6 +46,15 @@ pub struct Config {
     /// high-confidence находки и форсированный `level=1`; для слабых моделей
     /// (LibreChat/DeepSeek), чтобы ложное срабатывание не приводило к зацикливанию.
     pub default_profile: Profile,
+
+    /// Разрешённые значения заголовка `Host` для входящих запросов к `/mcp`
+    /// (защита rmcp от DNS-rebinding). По умолчанию — только loopback.
+    ///
+    /// При сетевом деплое (`host = "0.0.0.0"`) сюда нужно добавить адрес, по
+    /// которому клиенты обращаются к серверу (например, IP/имя хоста сервера),
+    /// иначе rmcp вернёт `403 Forbidden: Host header is not allowed`. Запись без
+    /// порта разрешает любой порт этого хоста.
+    pub allowed_hosts: Vec<String>,
 }
 
 impl Default for Config {
@@ -58,6 +67,11 @@ impl Default for Config {
             log_level: "info".to_string(),
             default_validation_level: 1,
             default_profile: Profile::Full,
+            allowed_hosts: vec![
+                "localhost".to_string(),
+                "127.0.0.1".to_string(),
+                "::1".to_string(),
+            ],
         }
     }
 }

@@ -53,6 +53,9 @@ struct HealthResponse {
 
 /// Собрать роутер: /health всегда + /mcp (рабочий или 503-заглушка).
 pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
+    // Список разрешённых Host для /mcp (защита rmcp от DNS-rebinding). Клонируем
+    // до перемещения config в AppState.
+    let allowed_hosts = config.allowed_hosts.clone();
     let index_stats = mcp.as_ref().map(|s| IndexStats {
         global_methods: s.index.global_methods.len(),
         global_properties: s.index.global_properties.len(),
@@ -77,7 +80,8 @@ pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
         let service_factory = move || Ok(server.clone());
         let http_config = StreamableHttpServerConfig::default()
             .with_stateful_mode(false)
-            .with_json_response(true);
+            .with_json_response(true)
+            .with_allowed_hosts(allowed_hosts);
         let http_service = StreamableHttpService::new(
             service_factory,
             session_manager,

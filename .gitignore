@@ -6,6 +6,9 @@
 /.code-index/
 /.claude/
 /.mcp.json
+# Бэкапы (timestamp-суффикс) — никогда не коммитим
+*.bak
+*.bak.*
 
 # Бинарники в /tools-каталоге деплоя
 /configs/config.toml
