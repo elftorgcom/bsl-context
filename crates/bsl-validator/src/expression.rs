@@ -594,9 +594,22 @@ fn find_matching_paren(bytes: &[u8], open: usize) -> Option<usize> {
 }
 
 fn count_top_level_args(args_text: &str) -> usize {
+    // Реально пустые скобки `Метод()` — аргументов нет.
+    if args_text.is_empty() {
+        return 0;
+    }
+    // Между скобками только пробелы. Главный случай — единственный аргумент,
+    // целиком стёртый маскировкой строки/комментария: `НСтр("ru = '...'")`
+    // после mask_strings_and_comments превращается в `НСтр(           )`.
+    // Раньше тут возвращался 0 → массовый false-positive «не принимает 0
+    // аргументов» на НСтр/Тип/ПредопределенноеЗначение и т.п. (baseline
+    // 2026-05-21: ~918k срабатываний wrong_argument_count, из них ~560k — НСтр).
+    // Реальный вызов без аргументов почти всегда пишут как `Метод()` без
+    // пробела (его поймала проверка `is_empty` выше), поэтому «одни пробелы
+    // при ненулевой длине» трактуем как 1 аргумент.
     let trimmed = args_text.trim();
     if trimmed.is_empty() {
-        return 0;
+        return 1;
     }
     let mut depth = 0i32;
     let mut commas = 0usize;
@@ -678,11 +691,43 @@ mod tests {
 
     #[test]
     fn count_args_simple() {
-        assert_eq!(count_top_level_args(""), 0);
-        assert_eq!(count_top_level_args(" "), 0);
+        assert_eq!(count_top_level_args(""), 0); // Метод() — без аргументов
         assert_eq!(count_top_level_args("а"), 1);
         assert_eq!(count_top_level_args("а, б, в"), 3);
         assert_eq!(count_top_level_args("а, Функция(б, в), г"), 3);
+    }
+
+    #[test]
+    fn count_args_masked_string_is_one() {
+        // После mask_strings_and_comments единственный аргумент-строка
+        // превращается в пробелы — это 1 аргумент, не 0 (фикс false-positive
+        // на НСтр/Тип/ПредопределенноеЗначение, baseline 2026-05-21).
+        assert_eq!(count_top_level_args("            "), 1);
+        assert_eq!(count_top_level_args("      ,    "), 2); // НСтр("...","ru")
+    }
+
+    #[test]
+    fn nstr_with_string_arg_is_valid() {
+        // End-to-end: НСтр("ru = '...'") не должен давать wrong_argument_count.
+        use platform_index::{Method, Parameter, PlatformIndex, Signature};
+        let mut index = PlatformIndex::new();
+        index.global_methods.push(Method {
+            name_ru: "НСтр".into(),
+            name_en: "NStr".into(),
+            description: String::new(),
+            return_type: "Строка".into(),
+            signatures: vec![Signature {
+                name: "Основная".into(),
+                description: String::new(),
+                parameters: vec![
+                    Parameter { name: "ИсходнаяСтрока".into(), type_name: String::new(), required: true, description: String::new() },
+                    Parameter { name: "КодЯзыка".into(), type_name: String::new(), required: false, description: String::new() },
+                ],
+            }],
+        });
+        let src = "Текст = НСтр(\"ru = 'Неверный тип запроса.'\");";
+        let res = validate_expression_at_level(&index, src, 1);
+        assert!(res.valid, "НСтр с одним строковым аргументом ложно помечен: {:?}", res.errors);
     }
 
     // ── Профиль потребителя и надёжность (карточка #1230) ──────────────────
