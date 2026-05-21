@@ -232,38 +232,11 @@ pub fn mask_strings_and_comments(src: &str) -> String {
             i = j;
             continue;
         }
-        // Строка "..." (в т.ч. многострочная 1С через `|`-продолжения).
+        // Строка "..."
         if b == b'"' {
             out[i] = b' '; // открывающая кавычка
             let mut j = i + 1;
-            // Признак «мы в начале новой физической строки» (после \n). Нужно для
-            // 1С-врезок: между строками-продолжениями `|` многострочного литерала
-            // допустимы строки-комментарии `//`. Кавычки в таком комментарии НЕ
-            // являются границами литерала — иначе парность `"` ломается и часть
-            // текста запроса выходит из-под маскировки (FP на ЧИСЛО(n,m) и т.п.).
-            let mut at_line_start = true;
             while j < bytes.len() {
-                if at_line_start {
-                    let mut k = j;
-                    while k < bytes.len() && (bytes[k] == b' ' || bytes[k] == b'\t') {
-                        k += 1;
-                    }
-                    if k + 1 < bytes.len() && bytes[k] == b'/' && bytes[k + 1] == b'/' {
-                        // Врезка-комментарий внутри многострочного литерала:
-                        // маскируем до конца физической строки, кавычки игнорируем.
-                        while j < bytes.len() && bytes[j] != b'\n' {
-                            if bytes[j] != b'\r' {
-                                out[j] = b' ';
-                            }
-                            j += 1;
-                        }
-                        // j на \n (или конце) — остаёмся в строковом режиме.
-                        at_line_start = true;
-                        continue;
-                    }
-                }
-                at_line_start = false;
-
                 if bytes[j] == b'"' {
                     if j + 1 < bytes.len() && bytes[j + 1] == b'"' {
                         // escaped quote — затираем обе и идём дальше
@@ -276,12 +249,7 @@ pub fn mask_strings_and_comments(src: &str) -> String {
                     j += 1;
                     break;
                 }
-                if bytes[j] == b'\n' {
-                    at_line_start = true; // следующий байт — начало физической строки
-                    j += 1;
-                    continue;
-                }
-                if bytes[j] != b'\r' {
+                if bytes[j] != b'\n' && bytes[j] != b'\r' {
                     out[j] = b' ';
                 }
                 j += 1;
@@ -484,6 +452,15 @@ fn check_global_calls(index: &PlatformIndex, src: &str, errors: &mut Vec<ExprErr
         if is_bsl_keyword(head) {
             continue;
         }
+        // Имена, коллизирующие с приведением типа в языке запросов
+        // (`ВЫРАЗИТЬ(X КАК ЧИСЛО(28,10))`): число «аргументов» в тексте запроса
+        // не имеет отношения к BSL-функции Число() — массовый false-positive.
+        // Проверку числа аргументов для них не делаем (baseline 2026-05-21,
+        // карточка #1232). Глубокий фикс через маскировку оказался нестабильным
+        // (откат в v0.3.5), поэтому точечно глушим коллизию.
+        if is_query_cast_collision(head) {
+            continue;
+        }
 
         // Если head — известный глобальный метод, попытаемся посчитать аргументы.
         let Some(_method) = index.find_global_method(head) else {
@@ -524,6 +501,15 @@ fn check_global_calls(index: &PlatformIndex, src: &str, errors: &mut Vec<ExprErr
 }
 
 // ── Вспомогательные ──────────────────────────────────────────────────────
+
+/// Имена, коллизирующие с приведением типа в языке запросов
+/// (`ВЫРАЗИТЬ(... КАК ЧИСЛО(n,m))`). Для них проверка числа аргументов как
+/// BSL-функции не делается — иначе массовый false-positive из текстов запросов,
+/// которые не всегда полностью замаскированы (1С-врезки `//` в многострочных
+/// литералах ломают парность кавычек). Карточка #1232.
+fn is_query_cast_collision(name: &str) -> bool {
+    matches!(name.to_lowercase().as_str(), "число" | "number")
+}
 
 fn is_bsl_keyword(s: &str) -> bool {
     // Минимальный список ключевых слов BSL, которые могут стоять перед `(`
@@ -722,18 +708,30 @@ mod tests {
     }
 
     #[test]
-    fn mask_multiline_query_with_comment_quotes() {
-        // Многострочный текст запроса 1С (строки `|`) с врезкой-комментарием,
-        // содержащим кавычки. Кавычки в комментарии НЕ должны ломать парность —
-        // весь текст запроса (включая ЧИСЛО(28,10) — приведение типа языка
-        // запросов) обязан уйти под маскировку, иначе FP на Число().
-        let src = "Т = \"ВЫБРАТЬ\n\t|\tПоле1,\n\t// по регистру \"Отклонения\" учитывается\n\t|\tВЫРАЗИТЬ(X КАК ЧИСЛО(28,10))\n\t|ИЗ Таб\";\nA = Б;";
-        let m = mask_strings_and_comments(src);
-        assert!(!m.contains("ЧИСЛО"), "текст запроса просочился: {m}");
-        assert!(!m.contains("ВЫБРАТЬ"));
-        assert!(!m.contains("Отклонения"));
-        assert!(m.contains("A = "), "код вне строки должен сохраниться");
-        assert_eq!(m.len(), src.len(), "длина/позиции сохранены");
+    fn chislo_call_with_two_args_skipped() {
+        // `Число(28,10)` коллизирует с приведением типа в языке запросов
+        // (ВЫРАЗИТЬ(X КАК ЧИСЛО(28,10))). Проверка числа аргументов для Число
+        // отключена → не должно быть wrong_argument_count даже при 2 аргументах.
+        use platform_index::{Method, Parameter, PlatformIndex, Signature};
+        let mut index = PlatformIndex::new();
+        index.global_methods.push(Method {
+            name_ru: "Число".into(),
+            name_en: "Number".into(),
+            description: String::new(),
+            return_type: "Число".into(),
+            signatures: vec![Signature {
+                name: "Основная".into(),
+                description: String::new(),
+                parameters: vec![Parameter {
+                    name: "Значение".into(),
+                    type_name: String::new(),
+                    required: true,
+                    description: String::new(),
+                }],
+            }],
+        });
+        let res = validate_expression_at_level(&index, "X = Число(28, 10);", 1);
+        assert!(res.valid, "Число(28,10) не должно ловиться: {:?}", res.errors);
     }
 
     #[test]
