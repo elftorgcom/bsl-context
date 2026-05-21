@@ -232,11 +232,38 @@ pub fn mask_strings_and_comments(src: &str) -> String {
             i = j;
             continue;
         }
-        // Строка "..."
+        // Строка "..." (в т.ч. многострочная 1С через `|`-продолжения).
         if b == b'"' {
             out[i] = b' '; // открывающая кавычка
             let mut j = i + 1;
+            // Признак «мы в начале новой физической строки» (после \n). Нужно для
+            // 1С-врезок: между строками-продолжениями `|` многострочного литерала
+            // допустимы строки-комментарии `//`. Кавычки в таком комментарии НЕ
+            // являются границами литерала — иначе парность `"` ломается и часть
+            // текста запроса выходит из-под маскировки (FP на ЧИСЛО(n,m) и т.п.).
+            let mut at_line_start = true;
             while j < bytes.len() {
+                if at_line_start {
+                    let mut k = j;
+                    while k < bytes.len() && (bytes[k] == b' ' || bytes[k] == b'\t') {
+                        k += 1;
+                    }
+                    if k + 1 < bytes.len() && bytes[k] == b'/' && bytes[k + 1] == b'/' {
+                        // Врезка-комментарий внутри многострочного литерала:
+                        // маскируем до конца физической строки, кавычки игнорируем.
+                        while j < bytes.len() && bytes[j] != b'\n' {
+                            if bytes[j] != b'\r' {
+                                out[j] = b' ';
+                            }
+                            j += 1;
+                        }
+                        // j на \n (или конце) — остаёмся в строковом режиме.
+                        at_line_start = true;
+                        continue;
+                    }
+                }
+                at_line_start = false;
+
                 if bytes[j] == b'"' {
                     if j + 1 < bytes.len() && bytes[j + 1] == b'"' {
                         // escaped quote — затираем обе и идём дальше
@@ -249,7 +276,12 @@ pub fn mask_strings_and_comments(src: &str) -> String {
                     j += 1;
                     break;
                 }
-                if bytes[j] != b'\n' && bytes[j] != b'\r' {
+                if bytes[j] == b'\n' {
+                    at_line_start = true; // следующий байт — начало физической строки
+                    j += 1;
+                    continue;
+                }
+                if bytes[j] != b'\r' {
                     out[j] = b' ';
                 }
                 j += 1;
@@ -687,6 +719,21 @@ mod tests {
         assert!(masked.contains("А = 1;"));
         assert!(!masked.contains("комментарий"));
         assert!(masked.contains("Б = 2;"));
+    }
+
+    #[test]
+    fn mask_multiline_query_with_comment_quotes() {
+        // Многострочный текст запроса 1С (строки `|`) с врезкой-комментарием,
+        // содержащим кавычки. Кавычки в комментарии НЕ должны ломать парность —
+        // весь текст запроса (включая ЧИСЛО(28,10) — приведение типа языка
+        // запросов) обязан уйти под маскировку, иначе FP на Число().
+        let src = "Т = \"ВЫБРАТЬ\n\t|\tПоле1,\n\t// по регистру \"Отклонения\" учитывается\n\t|\tВЫРАЗИТЬ(X КАК ЧИСЛО(28,10))\n\t|ИЗ Таб\";\nA = Б;";
+        let m = mask_strings_and_comments(src);
+        assert!(!m.contains("ЧИСЛО"), "текст запроса просочился: {m}");
+        assert!(!m.contains("ВЫБРАТЬ"));
+        assert!(!m.contains("Отклонения"));
+        assert!(m.contains("A = "), "код вне строки должен сохраниться");
+        assert_eq!(m.len(), src.len(), "длина/позиции сохранены");
     }
 
     #[test]
