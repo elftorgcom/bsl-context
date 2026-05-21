@@ -1,0 +1,19 @@
+[package]
+name = "hbk-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Парсеры html-страниц синтакс-помощника по типам (Method/Property/Object/Constructor/Enum/EnumValue)"
+
+[dependencies]
+hbk-reader = { path = "../hbk-reader" }
+scraper = { workspace = true }
+ego-tree = { workspace = true }
+encoding_rs = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

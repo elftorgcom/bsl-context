@@ -1,0 +1,52 @@
+//! Парсер страницы типа платформы (объекта). Не собирает properties/methods/
+//! constructors — эти дочерние коллекции собираются на уровне visitor (Phase 3).
+//!
+//! Главы: «Описание:», «Пример:», «См. также:», «Примечание:». Игнорируем
+//! «Свойства:», «Методы:», «События:», «Конструкторы:» — они есть как
+//! заголовки на странице-родителе, но реальные данные лежат в дочерних
+//! страницах TOC, которые визитор обходит отдельно.
+//!
+//! Порт `ObjectPageParser.kt`.
+
+use crate::blocks::{
+    parse_description, parse_example, parse_head_name, parse_note, parse_related_objects,
+};
+use crate::html::split_chapters;
+use crate::models::ObjectInfo;
+
+pub fn parse_object_page(html: &str) -> ObjectInfo {
+    let chapters = split_chapters(html);
+
+    let head_html = chapters.first().map(|c| c.body_html.as_str()).unwrap_or("");
+    let (name_ru, name_en) = parse_head_name(head_html);
+
+    let mut description = String::new();
+    let mut example: Option<String> = None;
+    let mut note: Option<String> = None;
+    let mut related = Vec::new();
+
+    for ch in chapters.iter().skip(1) {
+        match ch.title.as_str() {
+            "Описание:" => description = parse_description(&ch.body_html),
+            "Пример:" => example = Some(parse_example(&ch.body_html)),
+            "См. также:" => related = parse_related_objects(&ch.body_html),
+            "Примечание:" => note = Some(parse_note(&ch.body_html)),
+            // Игнорируемые главы (как в апстриме):
+            "Свойства:" | "Методы:" | "События:" | "Конструкторы:" | "Доступность:"
+            | "Использование в версии:" => {}
+            _ => {}
+        }
+    }
+
+    ObjectInfo {
+        name_ru,
+        name_en,
+        description,
+        example,
+        note,
+        related_objects: related,
+        properties: Vec::new(),
+        methods: Vec::new(),
+        constructors: Vec::new(),
+    }
+}

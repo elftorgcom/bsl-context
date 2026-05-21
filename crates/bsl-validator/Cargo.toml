@@ -1,0 +1,15 @@
+[package]
+name = "bsl-validator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Валидатор BSL-выражений: tree-sitter → извлечение Идентификатор.Член → проверка через PlatformIndex"
+
+[dependencies]
+platform-index = { path = "../platform-index" }
+tree-sitter = { workspace = true }
+serde = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }

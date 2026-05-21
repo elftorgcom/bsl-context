@@ -1,0 +1,23 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Локальные машинные конфиги и индексы (не часть исходников)
+/.code-index/
+/.claude/
+/.mcp.json
+
+# Бинарники в /tools-каталоге деплоя
+/configs/config.toml
+
+# Тестовые данные (большие)
+/tests/data/shcntx_ru.hbk
+/tests/data/*.hbk
+
+# Логи
+/logs/
+**/*.log
+
+# Kotlin-апстрим — это read-only референс со своим .git (чужой репозиторий).
+# Наш собственный код в crates/. Целиком вне нашего git, остаётся на диске как референс.
+/upstream/

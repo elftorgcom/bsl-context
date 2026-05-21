@@ -1,0 +1,59 @@
+# Changelog
+
+Все заметные изменения этого проекта документируются здесь.
+
+Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
+версионирование: [SemVer](https://semver.org/lang/ru/).
+
+## [0.3.0] — 2026-05-21
+
+### Добавлено
+
+- Поле `confidence` (`high` / `low`) у каждой находки `validate_expression`.
+  Производно от `kind`: `high` (false-positive ≈ 0) — `unknown_enum_value`,
+  `wrong_argument_count`; `low` (возможен false-positive) — `unknown_type_member`,
+  `unknown_new_type`, `unknown_global_method`. Раньше маппинг «kind → надёжность»
+  жил только во внешних правилах потребителя; теперь зашит в сам ответ
+  (карточка-decision #1230).
+- Параметр `profile` у `validate_expression`:
+  - `"full"` (default) — все находки, `level` как передан. Для сильной модели,
+    которая сама отбрасывает сомнительные срабатывания.
+  - `"strict"` — только high-confidence находки и форсированный `level=1`.
+    Для слабых моделей (LibreChat/DeepSeek): ложное срабатывание клиенту физически
+    не приходит, нечем зацикливаться. Разблокирует безопасный доступ слабых
+    агентов к валидатору.
+- Поле конфига `default_profile` (`full` / `strict`) — профиль по умолчанию,
+  если клиент не передал `profile`. Дефолт — `full`.
+
+### Совместимость
+
+- `validate_expression` без новых параметров ведёт себя как прежде, но каждая
+  ошибка дополнительно содержит поле `confidence`. Параметры `level` и `profile`
+  опциональны — обратная совместимость полная.
+
+## [0.2.0] — 2026-05-18
+
+### Изменено
+
+- HTTP-транспорт MCP переведён в stateless-режим: `session::never::NeverSessionManager`
+  + `StreamableHttpServerConfig::default().with_stateful_mode(false).with_json_response(true)`.
+  Устраняет ошибку `404 Session not found`, возникавшую после рестарта сервера
+  у клиентов с протухшим `Mcp-Session-Id` в памяти (claude-code VSCode extension
+  2.1.141+ перестал делать auto-reinit на 404). Точная копия фикса, применённого
+  в `mcp-cache-ci` v0.3.0 от 2026-05-14 (карточка #1184).
+
+### Совместимость
+
+- `POST /mcp` (initialize, tools/list, tools/call) — поведение идентично 0.1.x.
+- `DELETE /mcp` (close session) — теперь `405 Method Not Allowed`.
+- `GET /mcp` (standalone SSE stream) — теперь `405 Method Not Allowed`.
+  Mainstream MCP-клиенты (VSCode `claude-code`, CLI `claude`, MCP SDK Python/TS,
+  `mcp-cli`) эти методы не используют — совместимость с типовыми клиентами полная.
+
+## [0.1.0] — 2026-05-06
+
+- Первоначальный релиз. 9 MCP-tools контекста платформы 1С (типы, методы,
+  свойства, перечисления, конструкторы) + валидация BSL-выражений Уровня 1
+  (TypeDotMember, NewExpression, GlobalCall). Целевая платформа по умолчанию:
+  8.3.27.1786, задаётся в `configs/config.toml`. Заменяет выведенный 2026-04-24
+  апстрим `alkoleft/mcp-bsl-platform-context`.

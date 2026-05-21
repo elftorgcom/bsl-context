@@ -1,0 +1,15 @@
+[package]
+name = "platform-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PlatformIndex: storage + индексы + Markdown-форматтер"
+
+[dependencies]
+hbk-parser = { path = "../hbk-parser" }
+hbk-reader = { path = "../hbk-reader" }
+serde = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }

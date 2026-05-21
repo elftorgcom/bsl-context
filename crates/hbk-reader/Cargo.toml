@@ -1,0 +1,18 @@
+[package]
+name = "hbk-reader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Чтение бинарного контейнера shcntx_ru.hbk: entities-таблица + PackBlock TOC + FileStorage zip"
+
+[dependencies]
+byteorder = { workspace = true }
+flate2 = { workspace = true }
+zip = { workspace = true }
+encoding_rs = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
