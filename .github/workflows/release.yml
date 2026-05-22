@@ -38,11 +38,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             ext: ''
             archive: tar.gz
-          - os: macos-13          # Intel
-            target: x86_64-apple-darwin
-            ext: ''
-            archive: tar.gz
-          - os: macos-14          # Apple Silicon
+          - os: macos-14          # Apple Silicon (покрывает Mac 2020+)
             target: aarch64-apple-darwin
             ext: ''
             archive: tar.gz
