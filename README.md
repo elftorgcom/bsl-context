@@ -1,149 +1,150 @@
 # bsl-context
 
-MCP-сервер контекста платформы **1С:Предприятие 8.3**: типы, методы, свойства,
-конструкторы, значения системных перечислений — плюс статическая валидация
-BSL-выражений против реального индекса платформы.
+[Русский](README_RU.md) | **English**
 
-Источник данных — синтакс-помощник платформы (`shcntx_ru.hbk`), который сервер
-парсит собственным ридером (запуск 1С при этом не требуется). Заменяет выведенный
-из эксплуатации апстрим `alkoleft/mcp-bsl-platform-context`.
+An MCP server providing **1C:Enterprise 8.3** platform context: types, methods,
+properties, constructors, system enumeration values — plus static validation of
+BSL expressions against a real platform index.
 
-## Зачем
+The data source is the platform's syntax assistant (`shcntx_ru.hbk`), parsed by a
+custom reader (running 1C is not required). Replaces the discontinued upstream
+`alkoleft/mcp-bsl-platform-context`.
 
-Языковые модели и линтеры хорошо ловят синтаксис BSL, но «слепы» к ссылочной
-корректности относительно платформы: существует ли значение системного
-перечисления, есть ли у платформенного типа нужный метод, попадает ли число
-аргументов глобальной функции в её перегрузки. `bsl-context` закрывает именно
-этот слой — сверяет код с фактическим составом API конкретной версии платформы.
+## Why
 
-## Возможности
+Language models and linters handle BSL syntax well but are "blind" to referential
+correctness against the platform: whether a system enumeration value exists,
+whether a platform type has a given method, whether a global function's argument
+count fits its overloads. `bsl-context` covers exactly that layer — it checks code
+against the actual API of a specific platform version.
 
-**Справочные инструменты** — поиск и детали по типам, методам, свойствам,
-конструкторам и значениям перечислений платформы.
+## Features
 
-**Валидация выражений** (`validate_expression`) — разбирает BSL-фрагмент и
-возвращает список находок с указанием строки, колонки, вида и уверенности
-(`confidence`):
+**Reference tools** — search and details for platform types, methods, properties,
+constructors, and enumeration values.
 
-| Вид находки | confidence | Что значит |
-|-------------|-----------|------------|
-| `unknown_enum_value` | high | Значение системного перечисления не существует |
-| `wrong_argument_count` | high | Число аргументов глобальной функции вне её перегрузок |
-| `unknown_type_member` | low | У платформенного типа нет такого метода/свойства |
-| `unknown_new_type` | low | Конструктор `Новый ТипX` неизвестен платформе |
-| `unknown_global_method` | low | Неизвестная глобальная функция |
+**Expression validation** (`validate_expression`) — parses a BSL fragment and
+returns findings with line, column, kind, and confidence:
 
-high-confidence находки имеют false-positive близкий к нулю; low — зависят от
-точности вывода типов и полноты `hbk`.
+| Finding kind | confidence | Meaning |
+|--------------|-----------|---------|
+| `unknown_enum_value` | high | System enumeration value does not exist |
+| `wrong_argument_count` | high | Global function argument count outside its overloads |
+| `unknown_type_member` | low | Platform type has no such method/property |
+| `unknown_new_type` | low | `Новый TypeX` constructor unknown to the platform |
+| `unknown_global_method` | low | Unknown global function |
 
-### Уровни валидации
+high-confidence findings have a false-positive rate near zero; low-confidence ones
+depend on the accuracy of type inference and the completeness of the `hbk`.
 
-Глубина анализа задаётся параметром `level` (или `default_validation_level` в
-конфиге), клампится в `[1..=3]`:
+### Validation levels
 
-- **1** — ссылки с явным именем типа в исходнике (`Новый ТипX`, `ТипY.ЗначениеZ`,
-  число аргументов глобальных функций). Низкий шум, безопасный дефолт.
-- **2** — дополнительно локальный type inference в пределах процедуры:
-  `Х = Новый ТипX`, `Х = ТипY.ЗначениеZ`, аннотация `// @type ТипX`.
-- **3** — дополнительно return-type tracking: тип переменной из возвращаемого
-  типа метода/свойства, включая цепочки `Запрос.Выполнить().Выбрать()`.
+Analysis depth is set via the `level` parameter (or `default_validation_level` in
+the config), clamped to `[1..=3]`:
 
-Чем выше уровень — тем больше находок и потенциальных false-positive.
+- **1** — references with an explicit type name in the source (`Новый TypeX`,
+  `TypeY.ValueZ`, global function argument counts). Low noise, safe default.
+- **2** — additionally, local type inference within a procedure:
+  `X = Новый TypeX`, `X = TypeY.ValueZ`, the `// @type TypeX` annotation.
+- **3** — additionally, return-type tracking: a variable's type from the return
+  type of a method/property, including chains like `Query.Execute().Select()`.
 
-### Профили
+The higher the level, the more findings — and the more potential false positives.
 
-Параметр `profile` (или `default_profile` в конфиге):
+### Profiles
 
-- **`full`** (дефолт) — все находки, `level` как передан. Для сильной модели,
-  которая сама отбрасывает сомнительное.
-- **`strict`** — только high-confidence находки и форсированный `level=1`. Для
-  слабых моделей, чтобы ложное срабатывание не приводило к зацикливанию.
+The `profile` parameter (or `default_profile` in the config):
 
-## Архитектура
+- **`full`** (default) — all findings, `level` as passed. For a strong model that
+  discards questionable findings itself.
+- **`strict`** — only high-confidence findings and a forced `level=1`. For weaker
+  models, so a false positive does not cause a feedback loop.
 
-Cargo workspace из пяти крейтов:
+## Architecture
 
-| Крейт | Назначение |
-|-------|-----------|
-| `hbk-reader` | Чтение бинарного контейнера `shcntx_ru.hbk` |
-| `hbk-parser` | Парсинг HTML-страниц справки (типы, методы, перечисления) |
-| `platform-index` | Индекс платформы: загрузка, хранение, поиск |
-| `bsl-validator` | Валидатор BSL-выражений (tree-sitter) |
-| `server` | HTTP MCP-сервер (axum + rmcp), конфиг, PID-lock |
+A Cargo workspace of five crates:
 
-## Требования
+| Crate | Purpose |
+|-------|---------|
+| `hbk-reader` | Reads the binary `shcntx_ru.hbk` container |
+| `hbk-parser` | Parses help HTML pages (types, methods, enumerations) |
+| `platform-index` | Platform index: loading, storage, search |
+| `bsl-validator` | BSL expression validator (tree-sitter) |
+| `server` | HTTP MCP server (axum + rmcp), config, PID lock |
 
-- Rust (edition 2021), сборка `cargo build --release`.
-- Файл `shcntx_ru.hbk` из установленной платформы 1С:Предприятие
-  (`C:\Program Files\1cv8\<версия>\bin\shcntx_ru.hbk`). В репозиторий не входит.
+## Requirements
 
-## Сборка
+- Rust (edition 2021), built with `cargo build --release`.
+- The `shcntx_ru.hbk` file from an installed 1C:Enterprise platform
+  (`C:\Program Files\1cv8\<version>\bin\shcntx_ru.hbk`). Not included in the repo.
+
+## Build
 
 ```bash
 cargo build --release
 ```
 
-Бинарник — `target/release/bsl-context-rs` (`.exe` на Windows).
+The binary is `target/release/bsl-context-rs` (`.exe` on Windows).
 
-## Конфигурация
+## Configuration
 
-Скопируйте [`configs/config.toml.example`](configs/config.toml.example) в
-`configs/config.toml` и подправьте под свою машину. Ключевые поля:
+Copy [`configs/config.toml.example`](configs/config.toml.example) to
+`configs/config.toml` and adjust it for your machine. Key fields:
 
 ```toml
-host = "127.0.0.1"          # bind, loopback по умолчанию
-port = 8007                 # порт MCP-сервера
-platform_path = 'C:\Program Files\1cv8\8.3.27.1786'   # каталог версии платформы
+host = "127.0.0.1"          # bind, loopback by default
+port = 8007                 # MCP server port
+platform_path = 'C:\Program Files\1cv8\8.3.27.1786'   # platform version directory
 default_validation_level = 1
 ```
 
-### Выбор версии платформы при нескольких установках
+### Choosing the platform version when several are installed
 
-Если на машине стоит несколько версий платформы рядом, сервер **не выбирает
-версию автоматически** — путь задаётся явно в `platform_path`. Внутри указанного
-каталога ищется `shcntx_ru.hbk` по двум путям: `<platform_path>/shcntx_ru.hbk`
-и `<platform_path>/bin/shcntx_ru.hbk`.
+If multiple platform versions are installed side by side, the server does **not**
+pick a version automatically — the path is set explicitly via `platform_path`.
+Inside that directory it looks for `shcntx_ru.hbk` at two paths:
+`<platform_path>/shcntx_ru.hbk` and `<platform_path>/bin/shcntx_ru.hbk`.
 
-Это осознанное решение: в разных версиях платформы отличаются сигнатуры методов
-и состав системных перечислений, поэтому валидировать код нужно против той версии,
-под которую он пишется. Если `platform_path` не задан — сервер стартует, `/health`
-отвечает, но MCP-инструменты возвращают `503` с подсказкой указать путь.
+This is deliberate: method signatures and the set of system enumerations differ
+between platform versions, so code must be validated against the version it is
+written for. If `platform_path` is unset, the server starts and `/health`
+responds, but the MCP tools return `503` with a hint to set the path.
 
-### Сетевой деплой
+### Network deployment
 
-По умолчанию сервер слушает loopback. При `host = "0.0.0.0"` нужно добавить
-внешний адрес в `allowed_hosts` (защита rmcp от DNS-rebinding), иначе запросы по
-сети получат `403 Forbidden: Host header is not allowed`:
+By default the server listens on loopback. With `host = "0.0.0.0"` you must add
+the external address to `allowed_hosts` (rmcp's DNS-rebinding protection),
+otherwise networked requests get `403 Forbidden: Host header is not allowed`:
 
 ```toml
-allowed_hosts = ["localhost", "127.0.0.1", "::1", "<ip-сервера>"]
+allowed_hosts = ["localhost", "127.0.0.1", "::1", "<server-ip>"]
 ```
 
-## Запуск
+## Running
 
 ```bash
 bsl-context-rs --config /path/to/config.toml
 ```
 
-Healthcheck — `GET http://127.0.0.1:8007/health` (без MCP-handshake).
+Healthcheck — `GET http://127.0.0.1:8007/health` (no MCP handshake required).
 
-## MCP-инструменты
+## MCP tools
 
-Транспорт — Streamable HTTP на `http://127.0.0.1:8007/mcp` (stateless).
+Transport — Streamable HTTP at `http://127.0.0.1:8007/mcp` (stateless).
 
-| Инструмент | Назначение |
-|-----------|-----------|
-| `search` | Нечёткий поиск по типам, глобальным методам, свойствам |
-| `info` | Детали по точному имени |
-| `get_member` | Конкретный метод/свойство типа |
-| `get_members` | Все члены типа (методы + свойства + значения перечисления) |
-| `get_constructors` | Конструкторы типа с сигнатурами |
-| `get_enum_values` | Значения системного перечисления |
-| `validate_enum` | Проверка значения перечисления |
-| `validate_method_call` | Проверка числа аргументов глобальной функции |
-| `validate_expression` | Валидация BSL-фрагмента против платформы |
+| Tool | Purpose |
+|------|---------|
+| `search` | Fuzzy search across types, global methods, properties |
+| `info` | Details by exact name |
+| `get_member` | A specific method/property of a type |
+| `get_members` | All members of a type (methods + properties + enum values) |
+| `get_constructors` | A type's constructors with signatures |
+| `get_enum_values` | Values of a system enumeration |
+| `validate_enum` | Validate an enumeration value |
+| `validate_method_call` | Validate a global function's argument count |
+| `validate_expression` | Validate a BSL fragment against the platform |
 
-## Подключение к MCP-клиенту
+## Connecting an MCP client
 
 ```json
 {
@@ -156,6 +157,10 @@ Healthcheck — `GET http://127.0.0.1:8007/health` (без MCP-handshake).
 }
 ```
 
-## Лицензия
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) (in Russian).
+
+## License
 
 [MIT](LICENSE).
