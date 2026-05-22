@@ -6,6 +6,8 @@
 /.code-index/
 /.claude/
 /.mcp.json
+# Служебные инструкции для Claude Code (привязаны к окружению разработки)
+/CLAUDE.md
 # Бэкапы (timestamp-суффикс) — никогда не коммитим
 *.bak
 *.bak.*
