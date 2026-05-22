@@ -2,6 +2,12 @@
 
 **Русский** | [English](README.md)
 
+<a href="https://infostart.ru/1c/articles/2698363/" title="Публикация на Инфостарте">
+  <img src="https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg" alt="Infostart" height="32">
+</a>
+
+Опубликовано на Инфостарте: [bsl-context — проверка ИИ-кода 1С на соответствие API платформы](https://infostart.ru/1c/articles/2698363/)
+
 MCP-сервер контекста платформы **1С:Предприятие 8.3**: типы, методы, свойства,
 конструкторы, значения системных перечислений — плюс статическая валидация
 BSL-выражений против реального индекса платформы.

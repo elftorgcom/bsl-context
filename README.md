@@ -2,6 +2,12 @@
 
 [Русский](README_RU.md) | **English**
 
+<a href="https://infostart.ru/1c/articles/2698363/" title="Published on Infostart">
+  <img src="https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg" alt="Infostart" height="32">
+</a>
+
+Published on Infostart: [bsl-context — проверка ИИ-кода 1С на соответствие API платформы](https://infostart.ru/1c/articles/2698363/)
+
 An MCP server providing **1C:Enterprise 8.3** platform context: types, methods,
 properties, constructors, system enumeration values — plus static validation of
 BSL expressions against a real platform index.
