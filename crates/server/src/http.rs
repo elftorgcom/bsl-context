@@ -80,8 +80,12 @@ pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
         let service_factory = move || Ok(server.clone());
         let http_config = StreamableHttpServerConfig::default()
             .with_stateful_mode(false)
-            .with_json_response(true)
-            .with_allowed_hosts(allowed_hosts);
+            .with_json_response(true);
+        let http_config = if allowed_hosts.contains(&"*".to_string()) || allowed_hosts.is_empty() {
+            http_config.disable_allowed_hosts()
+        } else {
+            http_config.with_allowed_hosts(allowed_hosts)
+        };
         let http_service = StreamableHttpService::new(
             service_factory,
             session_manager,
