@@ -102,7 +102,10 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let addr: SocketAddr = format!("{}:{}", cfg.host, cfg.port).parse()?;
+    let ip: std::net::IpAddr = cfg.host.parse().map_err(|e| {
+        anyhow::anyhow!("не удалось распарсить host '{}' как IP-адрес: {}", cfg.host, e)
+    })?;
+    let addr = SocketAddr::new(ip, cfg.port);
     let app = http::router(cfg.clone(), mcp);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
