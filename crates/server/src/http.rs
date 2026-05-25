@@ -72,6 +72,7 @@ pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
     let mut router = Router::new()
         .route("/", get(index))
         .route("/health", get(health))
+        .route("/img/bsl.jpg", get(logo_image))
         .with_state(state);
 
     if let Some(server) = mcp {
@@ -104,6 +105,11 @@ async fn index(State(state): State<AppState>) -> Html<String> {
     let domain = state.config.external_domain.clone().unwrap_or_default();
     let rendered_html = raw_html.replace("{{domain}}", &domain);
     Html(rendered_html)
+}
+
+async fn logo_image() -> impl IntoResponse {
+    let bytes = include_bytes!("bsl.jpg");
+    ([(axum::http::header::CONTENT_TYPE, "image/jpeg")], bytes.as_slice())
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
