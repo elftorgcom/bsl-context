@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSL Context — MCP Server</title>
+    <meta name="description" content="Веб-интерфейс и руководство по подключению Model Context Protocol (MCP) сервера контекста платформы 1С.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.5);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.15);
+            --primary-hover: #4f46e5;
+            --accent: #a855f7;
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --font-outfit: 'Outfit', -apple-system, sans-serif;
+            --font-inter: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'Fira Code', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.2s ease;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-inter);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        /* Header / Hero */
+        header {
+            text-align: center;
+            margin-bottom: 3.5rem;
+            position: relative;
+            padding-top: 2rem;
+        }
+
+        .logo-container {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: transparent;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);
+            overflow: hidden;
+            border: 2px solid var(--primary);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .logo-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        h1 {
+            font-family: var(--font-outfit);
+            font-size: 2.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffffff 40%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 400;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Live Status Panel */
+        .status-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 0px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-outfit);
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 0.5rem 1rem;
+            border-radius: 0px;
+            border: 1px solid var(--card-border);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .indicator-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--warning);
+            box-shadow: 0 0 10px var(--warning);
+        }
+
+        .indicator-dot.online {
+            background-color: var(--success);
+            box-shadow: 0 0 12px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .indicator-dot.offline {
+            background-color: var(--error);
+            box-shadow: 0 0 12px var(--error);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 0px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .status-icon {
+            background: rgba(255, 255, 255, 0.05);
+            width: 42px;
+            height: 42px;
+            border-radius: 0px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .status-card:hover .status-icon {
+            background: var(--primary-glow);
+            color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        .status-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .status-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            word-break: break-all;
+        }
+
+        /* Core Content Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        @media (max-width: 968px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Integration Section (Left) */
+        .panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 0px;
+            padding: 2rem;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .panel-title {
+            font-family: var(--font-outfit);
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tabs-header {
+            display: flex;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.35rem;
+            border-radius: 0px;
+            border: 1px solid var(--card-border);
+            margin-bottom: 1.5rem;
+            gap: 0.25rem;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.75rem;
+            border-radius: 0px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-color);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .step-list {
+            margin-bottom: 1.5rem;
+            list-style: none;
+        }
+
+        .step-item {
+            position: relative;
+            padding-left: 2rem;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .step-item strong {
+            color: var(--text-color);
+        }
+
+        .step-item::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0.55rem;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        /* Code Block container */
+        .code-container {
+            background: #090d16;
+            border: 1px solid var(--card-border);
+            border-radius: 0px;
+            overflow: hidden;
+            margin-top: 1rem;
+            position: relative;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1.25rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .btn-copy {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 0.35rem 0.75rem;
+            border-radius: 0px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-family: var(--font-inter);
+        }
+
+        .btn-copy:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+        }
+
+        pre {
+            padding: 1.25rem;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #e2e8f0;
+        }
+
+        /* Tools Grid (Right) */
+        .tools-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .tool-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 0px;
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+        }
+
+        .tool-card:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(99, 102, 241, 0.2);
+            transform: translateX(4px);
+        }
+
+        .tool-name-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.35rem;
+        }
+
+        .tool-name {
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--accent);
+        }
+
+        .tool-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.15); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--card-border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <header>
+        <!-- Круглый логотип с Base64 изображением bsl.jpg -->
+        <div class="logo-container">
+            <img src="data:image/jpeg;base64,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" alt="BSL Logo" class="logo-image">
+        </div>
+        <h1>BSL Context</h1>
+        <p class="subtitle">MCP-сервер контекста платформы 1С (типы, методы, перечисления + валидация BSL-выражений)</p>
+    </header>
+
+    <!-- Live Health Panel -->
+    <section class="status-panel">
+        <div class="status-header">
+            <div class="status-title">
+                <i class="lucide-activity text-primary"></i>
+                Текущее состояние сервера
+            </div>
+            <div class="status-indicator">
+                <span class="indicator-dot" id="server-dot"></span>
+                <span id="server-status-text">Опрос сервера...</span>
+            </div>
+        </div>
+        
+        <div class="status-grid">
+            <!-- Версия -->
+            <div class="status-card">
+                <div class="status-icon"><i class="lucide-tag"></i></div>
+                <div class="status-info">
+                    <span class="status-label">Версия</span>
+                    <span class="status-value" id="status-version">—</span>
+                </div>
+            </div>
+            <!-- Uptime -->
+            <div class="status-card">
+                <div class="status-icon"><i class="lucide-clock"></i></div>
+                <div class="status-info">
+                    <span class="status-label">Время работы</span>
+                    <span class="status-value" id="status-uptime">—</span>
+                </div>
+            </div>
+            <!-- Индекс -->
+            <div class="status-card">
+                <div class="status-icon"><i class="lucide-database"></i></div>
+                <div class="status-info">
+                    <span class="status-label">Индекс 1С</span>
+                    <span class="status-value" id="status-index">—</span>
+                </div>
+            </div>
+            <!-- Методы / Типы -->
+            <div class="status-card">
+                <div class="status-icon"><i class="lucide-code-2"></i></div>
+                <div class="status-info">
+                    <span class="status-label">Проиндексировано</span>
+                    <span class="status-value" id="status-stats">—</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Content Grid -->
+    <div class="content-grid">
+        <!-- Интеграция (Вкладки) -->
+        <section class="panel">
+            <h2 class="panel-title">
+                <i class="lucide-plug-zap text-primary"></i>
+                Подключение к клиентам
+            </h2>
+            
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab(event, 'tab-antigravity')">
+                    <i class="lucide-sparkles"></i> Antigravity
+                </button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab-codex')">
+                    <i class="lucide-brain"></i> Codex
+                </button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab-claude')">
+                    <i class="lucide-bot"></i> Claude
+                </button>
+            </div>
+
+            <!-- Вкладка Antigravity -->
+            <div id="tab-antigravity" class="tab-pane active">
+                <ul class="step-list">
+                    <li class="step-item">Откройте настройки вашего клиента <strong>Antigravity</strong>.</li>
+                    <li class="step-item">Добавьте новый MCP-сервер с типом <strong>http</strong> (Stateless Streamable HTTP).</li>
+                    <li class="step-item">Вставьте сгенерированный JSON-конфиг в ваш конфигурационный файл настроек.</li>
+                </ul>
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>antigravity-config.json</span>
+                        <button class="btn-copy" onclick="copyCode('config-antigravity')">
+                            <i class="lucide-copy"></i> Скопировать
+                        </button>
+                    </div>
+                    <pre><code id="config-antigravity"></code></pre>
+                </div>
+            </div>
+
+            <!-- Вкладка Codex -->
+            <div id="tab-codex" class="tab-pane">
+                <ul class="step-list">
+                    <li class="step-item">Откройте или создайте файл конфигурации Codex <strong>config.toml</strong>.</li>
+                    <li class="step-item">Глобальный файл находится по пути: <code>~/.codex/config.toml</code>.</li>
+                    <li class="step-item">Добавьте настройки сервера в секцию <code>[mcp_servers]</code>:</li>
+                </ul>
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>config.toml</span>
+                        <button class="btn-copy" onclick="copyCode('config-codex')">
+                            <i class="lucide-copy"></i> Скопировать
+                        </button>
+                    </div>
+                    <pre><code id="config-codex"></code></pre>
+                </div>
+            </div>
+
+            <!-- Вкладка Claude Desktop -->
+            <div id="tab-claude" class="tab-pane">
+                <ul class="step-list">
+                    <li class="step-item">Откройте файл настроек Claude Desktop <code>claude_desktop_config.json</code>.</li>
+                    <li class="step-item">Этот файл обычно находится по пути:<br>
+                        <code>%APPDATA%\Claude\claude_desktop_config.json</code> (на Windows)<br>
+                        или <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (на macOS)
+                    </li>
+                    <li class="step-item">Добавьте секцию в раздел <code>mcpServers</code>:</li>
+                </ul>
+                <div class="code-container">
+                    <div class="code-header">
+                        <span>claude_desktop_config.json</span>
+                        <button class="btn-copy" onclick="copyCode('config-claude')">
+                            <i class="lucide-copy"></i> Скопировать
+                        </button>
+                    </div>
+                    <pre><code id="config-claude"></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Доступные Инструменты -->
+        <section class="panel">
+            <h2 class="panel-title">
+                <i class="lucide-wrench text-accent"></i>
+                Доступные инструменты (Tools)
+            </h2>
+            
+            <div class="tools-list">
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">search</span>
+                    </div>
+                    <p class="tool-desc">Нечёткий поиск по типам, глобальным методам и свойствам 1С с выдачей описания из синтакс-помощника.</p>
+                </div>
+                
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">info</span>
+                    </div>
+                    <p class="tool-desc">Получение детальной информации (сигнатура, параметры, описание) по точному имени типа, метода или свойства.</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">get_members</span>
+                    </div>
+                    <p class="tool-desc">Получение списка всех членов типа (методы, свойства, значения системных перечислений).</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">get_member</span>
+                    </div>
+                    <p class="tool-desc">Получение описания и типов конкретного члена класса/типа 1С.</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">get_constructors</span>
+                    </div>
+                    <p class="tool-desc">Получение всех доступных конструкторов типа с их сигнатурами.</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">get_enum_values</span>
+                    </div>
+                    <p class="tool-desc">Получение списка возможных значений для системного перечисления.</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">validate_enum</span>
+                    </div>
+                    <p class="tool-desc">Валидация значения перечисления на предмет корректности и соответствия стандартам 1С.</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">validate_method_call</span>
+                    </div>
+                    <p class="tool-desc">Проверка корректности вызова метода 1С (число переданных аргументов, обязательные параметры).</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-name-container">
+                        <span class="tool-name">validate_expression</span>
+                    </div>
+                    <p class="tool-desc">Глубокий статический анализ BSL-выражения на предмет ошибок типов с выводом confidence-метрик (v0.4.2+).</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2026 ET. Лицензия MIT. Разработано для разработчиков на 1С:Предприятии.</p>
+    </footer>
+</div>
+
+<script>
+    // Шаблоны конфигурации
+    // Плейсхолдер {{domain}} будет заменен на сервере. 
+    // Если страница открывается локально, JS подставит текущий хост.
+    const rawDomain = "{{domain}}";
+    const serverDomain = (rawDomain === "{" + "{domain}}" || rawDomain === "") 
+        ? window.location.origin 
+        : (rawDomain.startsWith("http") ? rawDomain : "https://" + rawDomain);
+
+    const configs = {
+        antigravity: {
+            "mcpServers": {
+                "bsl-context": {
+                    "type": "http",
+                    "url": `${serverDomain}/mcp`
+                }
+            }
+        },
+        codex: `[mcp_servers.bsl-context]\nurl = "${serverDomain}/mcp"`,
+        claude: {
+            "mcpServers": {
+                "bsl-context": {
+                    "url": `${serverDomain}/mcp`
+                }
+            }
+        }
+    };
+
+    // Отрисовка конфигураций
+    document.getElementById("config-antigravity").textContent = JSON.stringify(configs.antigravity, null, 2);
+    document.getElementById("config-codex").textContent = configs.codex;
+    document.getElementById("config-claude").textContent = JSON.stringify(configs.claude, null, 2);
+
+    // Инициализация Lucide иконок
+    lucide.createIcons();
+
+    // Переключение вкладок
+    function switchTab(evt, tabId) {
+        const tabPanes = document.querySelectorAll(".tab-pane");
+        const tabBtns = document.querySelectorAll(".tab-btn");
+
+        tabPanes.forEach(pane => pane.classList.remove("active"));
+        tabBtns.forEach(btn => btn.classList.remove("active"));
+
+        document.getElementById(tabId).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    // Скопировать код
+    function copyCode(elementId) {
+        const text = document.getElementById(elementId).textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector(`[onclick="copyCode('${elementId}')"]`);
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i class="lucide-check text-success"></i> Скопировано!`;
+            btn.style.borderColor = "var(--success)";
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.borderColor = "var(--card-border)";
+                lucide.createIcons();
+            }, 2000);
+        });
+    }
+
+    // Функция форматирования времени работы (uptime)
+    function formatUptime(seconds) {
+        if (!seconds) return "—";
+        const d = Math.floor(seconds / (3600 * 24));
+        const h = Math.floor((seconds % (3600 * 24)) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        
+        let res = "";
+        if (d > 0) res += `${d}дн `;
+        if (h > 0 || d > 0) res += `${h}ч `;
+        if (m > 0 || h > 0 || d > 0) res += `${m}мин `;
+        res += `${s}сек`;
+        return res;
+    }
+
+    // Запрос статуса сервера (Live Healthcheck)
+    function checkServerHealth() {
+        const healthUrl = "/health"; // Относительный путь для работы на сервере
+        const dot = document.getElementById("server-dot");
+        const text = document.getElementById("server-status-text");
+
+        fetch(healthUrl)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                // Сервер активен
+                dot.className = "indicator-dot online";
+                text.textContent = "В сети (Online)";
+                text.style.color = "var(--success)";
+                
+                // Заполнение полей
+                document.getElementById("status-version").textContent = data.version || "—";
+                
+                // Время работы
+                if (data.uptime_sec !== undefined) {
+                    document.getElementById("status-uptime").textContent = formatUptime(data.uptime_sec);
+                    // Запускаем инкремент времени в реальном времени
+                    if (window.uptimeInterval) clearInterval(window.uptimeInterval);
+                    let currentUptime = data.uptime_sec;
+                    window.uptimeInterval = setInterval(() => {
+                        currentUptime++;
+                        document.getElementById("status-uptime").textContent = formatUptime(currentUptime);
+                    }, 1000);
+                }
+                
+                // Индекс платформы
+                if (data.index_loaded) {
+                    document.getElementById("status-index").textContent = "Загружен";
+                    document.getElementById("status-index").style.color = "var(--success)";
+                } else {
+                    document.getElementById("status-index").textContent = "Не загружен";
+                    document.getElementById("status-index").style.color = "var(--warning)";
+                }
+                
+                // Статистика
+                if (data.index_stats) {
+                    const stats = data.index_stats;
+                    const totalElements = stats.global_methods + stats.global_properties + stats.types + stats.enum_types;
+                    document.getElementById("status-stats").textContent = `${totalElements.toLocaleString()} сущностей`;
+                } else {
+                    document.getElementById("status-stats").textContent = "Нет данных";
+                }
+            })
+            .catch(err => {
+                // Ошибка сервера (офлайн)
+                dot.className = "indicator-dot offline";
+                text.textContent = `Недоступен (${err.message})`;
+                text.style.color = "var(--error)";
+                
+                // Сброс полей
+                document.getElementById("status-version").textContent = "—";
+                document.getElementById("status-uptime").textContent = "—";
+                document.getElementById("status-index").textContent = "Офлайн";
+                document.getElementById("status-index").style.color = "var(--error)";
+                document.getElementById("status-stats").textContent = "—";
+                
+                if (window.uptimeInterval) clearInterval(window.uptimeInterval);
+            });
+    }
+
+    // Запуск опроса при старте и каждые 15 секунд
+    checkServerHealth();
+    setInterval(checkServerHealth, 15000);
+</script>
+</body>
+</html>

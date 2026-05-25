@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::{
     extract::State,
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::{Html, IntoResponse, Json},
     routing::{get, post},
     Router,
 };
@@ -70,6 +70,7 @@ pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
     };
 
     let mut router = Router::new()
+        .route("/", get(index))
         .route("/health", get(health))
         .with_state(state);
 
@@ -96,6 +97,13 @@ pub fn router(config: Config, mcp: Option<BslContextServer>) -> Router {
         router = router.route("/mcp", post(mcp_placeholder));
     }
     router
+}
+
+async fn index(State(state): State<AppState>) -> Html<String> {
+    let raw_html = include_str!("index.html");
+    let domain = state.config.external_domain.clone().unwrap_or_default();
+    let rendered_html = raw_html.replace("{{domain}}", &domain);
+    Html(rendered_html)
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {

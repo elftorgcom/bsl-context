@@ -58,6 +58,10 @@ pub struct Config {
     /// иначе rmcp вернёт `403 Forbidden: Host header is not allowed`. Запись без
     /// порта разрешает любой порт этого хоста.
     pub allowed_hosts: Vec<String>,
+
+    /// Внешний домен сервера для отображения на стартовой странице (например, "bsl-context.alwaysdata.net").
+    /// Если не задан, на веб-странице будет использоваться window.location.origin.
+    pub external_domain: Option<String>,
 }
 
 impl Default for Config {
@@ -75,6 +79,7 @@ impl Default for Config {
                 "127.0.0.1".to_string(),
                 "::1".to_string(),
             ],
+            external_domain: None,
         }
     }
 }
